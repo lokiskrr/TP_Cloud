@@ -28,22 +28,21 @@ DONE :)
 
 🌞 **Déterminer quel algorithme de chiffrement utiliser pour vos clés**
 
+```powershell
 Il serait preferable d'utilisé ECDSA avec connexion SSH au lieu de RSA, comme recommandé dans le communiqué de l'ANSSI dans la recommandation 10 "Lorsque les clients et les serveurs SSH supportent ECDSA, son usage doit être préféré à RSA."
     -> D'apres mes recherches c'est parceque RSA est devenu obsolète et vulnérable a cause des attaques quantum computing.
 https://cyber.gouv.fr/sites/default/files/2014/01/NT_OpenSSH.pdf
 
 Mais je vais utiliser Ed25519, car il est plus rapide, stable et a une meilleur sécurité. 
+```
 
 ### B. Génération de votre paire de clés
 
 🌞 **Générer une paire de clés pour ce TP**
 
-- la clé privée doit s'appeler `cloud_tp`
-- elle doit se situer dans le dossier standard pour votre utilisateur (c'est `~/.ssh`)
-- elle doit utiliser l'algorithme que vous avez choisi à l'étape précédente (donc, pas de RSA)
-- elle est protégée par un mot de passe (*passphrase*) de votre choix
+```powershell
 
-> Dans le compte-rendu, donnez toutes les commandes de génération de la clé. Prouvez aussi avec un `ls` sur votre clé qu'elle existe bien, au bon endroit.
+```
 
 ### C. Agent SSH
 
