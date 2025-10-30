@@ -387,19 +387,12 @@ Rules updated (v6)
 🌞 **L'application devrait être fonctionnelle sans soucis à partir de là**
 
 ```powershell
-PS C:\Users\leobe> curl http://20.91.250.120:8000/
-
-
-StatusCode        : 200
-StatusDescription : OK
-Content           : <!DOCTYPE html>
-                    <html lang="en">
-                    <head>
-                        <meta charset="UTF-8">
-                        <meta name="viewport"
-                    content="width=device-width, initial-scale=1.0">
-                        <title>Purr Messages - Cat Message
-                    Board</title>
-                        <...
+azureuser@azure1:~$ curl http://20.91.250.120:8000/
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Purr Messages - Cat Message Board</title>
 ```
 
