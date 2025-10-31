@@ -132,6 +132,7 @@ status: done
 
 🌞 **Utilisez `cloud-init` pour préconfigurer une VM comme `azure2.tp2` :**
 
+Cloud-init -->
 ```powershel 
 #cloud-config
 disable_root: false
@@ -143,7 +144,7 @@ system_info:
 users:
   - name: fata
     sudo: ALL=(ALL) NOPASSWD:ALL
-passwd: $6$kkzNH2tCq4l341MH$3mVCwbmU7.PMKGkZTeU8ock66zM4sduqUiRZDaU2df/hN0L5tDSe5W2GR9OVL.OzDPeQgg4r4/QxKOJErsgoO.
+    passwd: $6$kkzNH2tCq4l341MH$3mVCwbmU7.PMKGkZTeU8ock66zM4sduqUiRZDaU2df/hN0L5tDSe5W2GR9OVL.OzDPeQgg4r4/QxKOJErsgoO.
     groups: [sudo]
     shell: /bin/bash
     ssh_authorized_keys:
@@ -153,9 +154,9 @@ packages:
   - mariadb-server
 
 write_files:
-  - path: /home/fata/init.sql
-    owner: fata:fata
-    permissions: '0644'
+  - path: /tmp/init.sql
+    owner: root:root
+    permissions: '0600'
     content: |
       CREATE DATABASE IF NOT EXISTS meow_database;
       CREATE USER IF NOT EXISTS 'meow'@'%' IDENTIFIED BY 'meow';
@@ -163,38 +164,33 @@ write_files:
       FLUSH PRIVILEGES;
 
 runcmd:
-  - sudo systemctl enable mariadb
-  - sudo systemctl start mariadb
-  - sudo mariadb -u root < /home/fata/init.sql
-```
-
-```powershell
-PS C:\Users\makina> az vm create `
->> --resource-group cat `
->> --name azure5.tp2 `
->> --image Ubuntu2404 `
->> --size Standard_B1s `
->> --ssh-key-values ~/.ssh/cloud_tp.pub `
->> --custom-data ~/.ssh/cloud-init.txt `
->> --public-ip-sku Standard `
->> --location SwedenCentral
-The default value of '--size' will be changed to 'Standard_D2s_v5' from 'Standard_DS1_v2' in a future release.
-{
-  "fqdns": "",
-  "id": "/subscriptions/eda0215f-297b-4358-90a3-9da218cca3ca/resourceGroups/cat/providers/Microsoft.Compute/virtualMachines/azure5.tp2",
-  "location": "swedencentral",
-  "macAddress": "7C-1E-52-1D-22-E0",
-  "powerState": "VM running",
-  "privateIpAddress": "10.0.0.4",
-  "publicIpAddress": "4.223.141.211",
-  "resourceGroup": "cat"
-}
+  - systemctl enable mariadb
+  - systemctl start mariadb
+  - mariadb -u root < /tmp/init.sql
+#  - rm -f /tmp/init.sql
 ```
 
 🌞 **Testez que ça fonctionne**
 
 ```powershell
+fata@meown:~$ mysql -u meow -p
+Enter password:
+Welcome to the MariaDB monitor.  Commands end with ; or \g.
+Your MariaDB connection id is 35
+Server version: 10.6.22-MariaDB-0ubuntu0.22.04.1 Ubuntu 22.04
 
+Copyright (c) 2000, 2018, Oracle, MariaDB Corporation Ab and others.
+
+Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+
+MariaDB [(none)]> show databases;
++--------------------+
+| Database           |
++--------------------+
+| information_schema |
+| meow_database      |
++--------------------+
+2 rows in set (0.000 sec)
 ```
 
 # III. Gestion de secrets
@@ -203,24 +199,93 @@ The default value of '--size' will be changed to 'Standard_D2s_v5' from 'Standar
 
 🌞 **Récupérer votre secret depuis la VM**
 
+keyvault creation -->
 ```powershell
-
+az>> keyvault create --name fatakv --resource-group cat --location swedencentral --enable-rbac-authorization false
 ```
 
+secret creation --> 
+```powershell 
+az>> keyvault secret set --vault-name fatakv --name fatasecret --val
+```
+
+manage idendity activation -->
+```powershell 
+az>> vm identity assign --name azure1.tp1 --resource-group cat
+```
+
+access policy configuration -->
+```powershell 
+az keyvault set-policy --name fatakv --object-id c7c8f8d9-a64d-4a09-8da4-d2d247668205 --secret-permissions get list
+```
+
+```powershell 
+az login --identity --allow-no-subscriptions
+
+azureuser@azure1:~$ az keyvault secret show --vault-name fatakv --name TestSecret
+{
+  "attributes": {
+    "created": "2025-10-31T10:40:56+00:00",
+    "enabled": true,
+    "expires": null,
+    "notBefore": null,
+    "recoverableDays": 90,
+    "recoveryLevel": "Recoverable+Purgeable",
+    "updated": "2025-10-31T10:40:56+00:00"
+  },
+  "contentType": null,
+  "id": "https://fatakv.vault.azure.net/secrets/TestSecret/d307c56bac994d2e922effa962d4b595",
+  "kid": null,
+  "managed": null,
+  "name": "TestSecret",
+  "tags": {
+    "file-encoding": "utf-8"
+  },
+  "value": "ValeurDeTest123"
+}
+```
 ## 2. Gérer les secrets de l'application
 
 ### A. Script pour récupérer les secrets
 
 🌞 **Coder un ptit script `bash` : `get_secrets.sh`**
 
+new secret -->
 ```powershell
+az>> keyvault secret set --vault-name fatakv --name DBPASSWORD --value "meow"
+```
 
+script bash : get-secrets.sh
+```powershell 
+az login --identity --allow-no-subscriptions >/dev/null 2>&1
+
+SECRET=$(az keyvault secret show --vault-name fatakv --name DBPASSWORD --query value -o tsv)
+
+ENV_PATH="/home/webapp/app/.env"
+
+mkdir -p "$(dirname "$ENV_PATH")"
+touch "$ENV_PATH"
+
+grep -q '^DB_PASSWORD=' "$ENV_PATH" && \
+    sed -i "s/^DB_PASSWORD=.*/DB_PASSWORD=$SECRET/" "$ENV_PATH" || \
+    echo "DB_PASSWORD=$SECRET" >> "$ENV_PATH"
+
+echo "DB_PASSWORD mis à jour dans $ENV_PATH"
 ```
 
 🌞 **Environnement du script `get_secrets.sh`**, il doit :
 
 ```powershell
+azureuser@azure1:~$ sudo mv ./get_secrets.sh /usr/local/bin/get_secrets.sh
 
+sudo chown webapp:webapp /usr/local/bin/get_secrets.sh
+
+sudo chmod 700 /usr/local/bin/get_secrets.sh
+
+azureuser@azure1:/usr/local/bin$ ls -l /usr/local/bin/get_secrets.sh
+
+azureuser@azure1:/usr/local/bin$ sudo -u webapp /usr/local/bin/get_secrets.sh
+DB_PASSWORD mis à jour dans /home/webapp/app/.env
 ```
 
 ### B. Exécution automatique
@@ -228,13 +293,27 @@ The default value of '--size' will be changed to 'Standard_D2s_v5' from 'Standar
 🌞 **Ajouter le script en `ExecStartPre=` dans `webapp.service`**
 
 ```powershell
+azureuser@azure1:/usr/local/bin$ sudo nano /etc/systemd/system/webapp.service
 
+azureuser@azure1:/$ sudo systemctl daemon-reload
+
+azureuser@azure1:/$ sudo systemctl restart webapp
 ```
 
 🌞 **Prouvez que la ligne en `ExecStartPre=` a bien été exécutée**
 
 ```powershell
-
+azureuser@azure1:/$ systemctl status webapp
+● webapp.service - Super Webapp MEOW
+     Loaded: loaded (/etc/systemd/system/webapp.service; enable>
+     Active: active (running) since Fri 2025-10-31 11:45:38 UTC>
+    Process: 19683 ExecStartPre=/usr/local/bin/get_secrets.sh (>
+   Main PID: 19737 (python)
+      Tasks: 1 (limit: 989)
+     Memory: 53.5M (peak: 55.6M)
+        CPU: 1.870s
+     CGroup: /system.slice/webapp.service
+             └─19737 /opt/meow/bin/python app.py
 ```
 
 ### C. Secret Flask
